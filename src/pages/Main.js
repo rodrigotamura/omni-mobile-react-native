@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-community/async-storage';
 import { SafeAreaView, Image, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-
+import io from 'socket.io-client';
 /**
  * SafeAreaView
  * Vai jogar os elementos na area apropriada. Experimente no iOS sem esta opcao e entenderas!
@@ -13,10 +13,13 @@ import { SafeAreaView, Image, StyleSheet, View, Text, TouchableOpacity } from 'r
 import logo from '../assets/logo.png';
 import like from '../assets/like.png';
 import dislike from '../assets/dislike.png';
+import itsamatch from '../assets/itsamatch.png';
 
 export default function Main({ navigation }) {
     const id = navigation.getParam('user'); // pegando parametro em Main (Login, metodo handleLogin)
     const [ users, setUsers ] = useState([]);
+    const [ matchDev, setMatchDev ] = useState(null); // essa variável vai ficar sendo escutada
+
 
     useEffect(() => {
         async function loadUsers() {
@@ -30,6 +33,46 @@ export default function Main({ navigation }) {
         }
 
         loadUsers();
+    }, [id]);
+
+    // interessante separar o useEffect por funcionalidade. Mas funcionaria se aproveitássemos o de cima
+    useEffect(() => {
+        /**
+         * Esse useEffect está fazendo a chamada ao WebSocket
+         */
+        const socket = io(  // estabelendo conexão
+            'http://10.0.3.2:3333', // onde está o API
+            // http://localhost:3333 caso de o comando > adb reverse tcp:3333 tcp:33333
+            // teria então que inserir http://10.0.3.2 com o Genymotion
+            // ou o IP da máquina caso USB
+            // 10.0.2.2:3333 caso esteja no emulador Android Studio
+            {// este segundo parâmetro seriam os dados que passaríamos a mais
+                query: { user: id }
+            }
+            );
+
+            // ouvindo emit do tipo 'match' do servidor
+            socket.on('match', dev => {
+                console.log(dev);
+                setMatchDev(dev);
+            });
+
+        /* TESTES PARA CONHECER O BÁSICO DO WEBSOCKET LADO CLIENT
+        setTimeout(() => {
+            socket.emit(
+                'hello',  // emitindo uma mensagem ao servidor do tipo 'hello'
+                { // neste segundo parametro podemos enviar qualquer outra coisa, um objeto por exemplo
+                    message: 'Hello World'
+                }
+            );
+        }, 3000);
+
+        // Recebendo mensagem do API do tipo 'world'
+        socket.on('world', message => {
+            console.log(message);
+        })
+        */
+
     }, [id]);
 
     async function handleLike() {
@@ -95,6 +138,18 @@ export default function Main({ navigation }) {
 
                     <TouchableOpacity style={styles.button} onPress={handleLike}>
                         <Image source={like} />
+                    </TouchableOpacity>
+                </View>
+            ) }
+
+            { matchDev && ( // se tiver algo dentro do matchDev entao faça...
+                <View style={styles.matchContainer}>
+                    <Image source={itsamatch} style={styles.matchImage} />
+                    <Image style={styles.matchAvatar} source={{ uri: matchDev.avatar }} />
+                    <Text style={styles.matchName}>{matchDev.name}</Text>
+                    <Text style={styles.matchBio}>{matchDev.bio}</Text>
+                    <TouchableOpacity onPress={() => setMatchDev(null)}>
+                        <Text style={styles.closeMatch}>Fechar</Text>
                     </TouchableOpacity>
                 </View>
             ) }
@@ -185,4 +240,57 @@ const styles = StyleSheet.create({
             height: 2
         }
     },
+
+    matchContainer: {
+        ...StyleSheet.absoluteFillObject,
+        /**
+         * a linha acima possui:
+         *  position: "absolute";
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: 0;
+         */
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+
+    matchImage: {
+        height: 60,
+        resizeMode: 'contain' // faz com que a img caiba no container dela
+    },
+
+    matchAvatar: {
+        width: 160,
+        height: 160,
+        borderWidth: 5,
+        borderRadius: 80,
+        borderColor: '#FFF',
+        marginVertical: 30
+    },
+
+    matchName: {
+        fontSize: 26,
+        fontWeight: 'bold',
+        color: '#FFF'
+    },
+
+    matchBio: {
+        marginTop: 10,
+        fontSize: 16,
+        color: 'rgba(255,255,255,0.8)',
+        lineHeight: 24,
+        textAlign: 'center',
+        paddingHorizontal: 30
+    },
+
+    closeMatch: {
+        fontSize: 16,
+        color: 'rgba(255,255,255,0.8)',
+        textAlign: 'center',
+        marginTop: 30,
+        fontWeight: 'bold'
+
+    }
 })
